@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Calculator Pro Max — Ultimate</title>
+<style>
+  :root{
+    --scale: 1;
+    --bg-r: 15; --bg-g: 23; --bg-b: 36;
+    --accent-r: 34; --accent-g: 211; --accent-b: 238;
+    --text-light: #e6eef8;
+    --muted: #94a3b8;
+    --card: rgba(255,255,255,0.03);
+    --radius: 10px;
+    --shadow: 0 10px 30px rgba(2,6,23,0.55);
+  }
+  html { font-size: calc(14px * var(--scale)); }
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color:var(--text-light);
+    background: linear-gradient(180deg, rgb(var(--bg-r),var(--bg-g),var(--bg-b)), #071029);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* Layout */
+  .app { display:flex; height:100vh; gap:12px; align-items:stretch; }
+  .sidebar{
+    width:64px; background:rgba(255,255,255,0.02); padding:10px; box-sizing:border-box;
+    display:flex; flex-direction:column; gap:8px; align-items:center; border-right:1px solid rgba(255,255,255,0.03);
+  }
+  .sidebar .icon-btn{
+    width:44px;height:44px;border-radius:10px;border:0;background:transparent;color:rgb(var(--accent-r),var(--accent-g),var(--accent-b));
+    display:flex;align-items:center;justify-content:center;cursor:pointer; position:relative; transition:all 220ms ease;
+  }
+  .sidebar .icon-btn:hover{ background:rgba(255,255,255,0.02); transform:translateY(-4px); box-shadow:var(--shadow); }
+  .tooltip{ position:absolute; left:56px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); padding:6px 10px;border-radius:8px; font-size:0.85rem; white-space:nowrap; display:none; color:var(--text-light);}
+  .icon-btn:hover .tooltip{ display:block; }
+
+  /* workspace */
+  .workspace{flex:1; position:relative; padding:18px; overflow:auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .title{font-weight:700; font-size:1.05rem; display:flex; gap:12px; align-items:center}
+  .small{color:var(--muted); font-size:0.9rem}
+
+  /* windows */
+  .win{
+    position:absolute; min-width:260px; min-height:140px; background:rgba(255,255,255,0.03);
+    border-radius:var(--radius); box-shadow:var(--shadow); padding:10px; box-sizing:border-box;
+    transition: transform 260ms cubic-bezier(.2,.9,.25,1), opacity 200ms ease, box-shadow 220ms ease;
+    overflow:auto;
+    resize:both;
+  }
+  .win.hidden{ opacity:0; transform:translateY(12px) scale(.98); pointer-events:none; }
+  .win-header{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px}
+  .win-title{font-weight:700}
+  .win-actions{display:flex; gap:8px; align-items:center}
+  .close{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:1.05rem}
+  .win .content{font-size:0.95rem; color:var(--text-light)}
+
+  /* calculators */
+  .display{background:rgba(0,0,0,0.12); border-radius:8px; padding:10px; text-align:right; min-height:72px;}
+  .expr{color:var(--muted); font-size:0.95rem; word-break:break-all}
+  .out{font-size:1.4rem; font-weight:700; margin-top:6px}
+  .keys{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-top:10px}
+  .key{padding:10px;border-radius:8px;border:0;background:transparent;color:rgb(var(--accent-r),var(--accent-g),var(--accent-b)); cursor:pointer; font-size:0.95rem}
+  .op{ background: rgba(0,0,0,0.13); color:#cde8ff }
+  .eq{ background: linear-gradient(180deg, rgba(var(--accent-r),var(--accent-g),var(--accent-b),1), #0284c7); color:#001219; font-weight:700; grid-column: span 2}
+
+  /* tools */
+  .tabs{display:flex; gap:8px; margin:8px 0}
+  .tab{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03); background:transparent; cursor:pointer; color:var(--muted)}
+  .tab.active{ background: rgba(var(--accent-r),var(--accent-g),var(--accent-b),0.08); color:rgb(var(--accent-r),var(--accent-g),var(--accent-b)) }
+
+  input[type=text], input[type=number], select, input[type=date]{ width:100%; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; box-sizing:border-box }
+  .row{display:flex; gap:8px}
+
+  /* animations */
+  .open-anim{ opacity:1; transform:translateY(0) scale(1); }
+  .pop-scale{ transform-origin:center; transition: transform 220ms cubic-bezier(.2,.9,.25,1); }
+  .pop-scale.open{ transform: scale(1); } .pop-scale.closed{ transform: scale(.96); opacity:.9; }
+
+  /* small helpers */
+  .btn{ padding:8px 10px; border-radius:8px; border:0; cursor:pointer; background:rgba(255,255,255,0.03); color:rgb(var(--accent-r),var(--accent-g),var(--accent-b)); }
+  .btn.ghost{ background:transparent; border:1px solid rgba(255,255,255,0.03); color:var(--muted) }
+  .flex{ display:flex; gap:8px; align-items:center }
+  .solutions{ background:rgba(0,0,0,0.06); padding:8px; border-radius:8px; margin-top:8px; }
+
+  /* fixed grid placeholders (for drag-drop) */
+  .grid-slot{ position:absolute; border:1px dashed rgba(255,255,255,0.02); border-radius:8px; transition:all 260ms ease; pointer-events:none; }
+
+  /* Responsive */
+  @media(max-width:980px){
+    .sidebar{ display:flex; flex-direction:row; width:100%; height:60px; padding:6px; border-right:none; border-bottom:1px solid rgba(255,255,255,0.03) }
+    .app{ flex-direction:column-reverse }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="sidebar" aria-hidden="false">
+    <button class="icon-btn" id="btn-settings" title="Settings">⚙️ <span class="tooltip" data-key="settings"></span></button>
+    <button class="icon-btn" id="btn-basic" title="Basic">🧮 <span class="tooltip" data-key="basic"></span></button>
+    <button class="icon-btn" id="btn-advanced" title="Advanced">🧠 <span class="tooltip" data-key="adv"></span></button>
+    <button class="icon-btn" id="btn-tools" title="Tools">🔁 <span class="tooltip" data-key="tools"></span></button>
+    <button class="icon-btn" id="btn-solver" title="Solver">📐 <span class="tooltip" data-key="solver"></span></button>
+    <button class="icon-btn" id="btn-reset" title="Reset">🔄 <span class="tooltip" data-key="reset"></span></button>
+  </div>
+
+  <div class="workspace" id="workspace">
+    <div class="topbar">
+      <div class="title">Calculator Pro Max <span class="small" id="subtitle">— simple & modern</span></div>
+      <div class="small">Open windows appear here. Settings open centered.</div>
+    </div>
+    <!-- grid slots to place windows (calculated via script) -->
+    <div id="gridContainer"></div>
+  </div>
+</div>
+
+<!-- Windows (hidden initially) -->
+<!-- Basic Calculator -->
+<div class="win hidden pop-scale" id="win-basic" style="width:360px;height:420px; z-index:10;">
+  <div class="win-header"><div class="win-title" data-i18n="basic">Basic Calculator</div>
+    <div class="win-actions"><button class="close" data-close="win-basic">✖</button></div></div>
+  <div class="content">
+    <div class="display" id="basic-display"><div class="expr" id="b-expr">&nbsp;</div><div class="out" id="b-out">0</div></div>
+    <div class="keys" id="b-keys">
+      <button class="key clear" data-key="AC">AC</button>
+      <button class="key clear" data-key="DEL">⌫</button>
+      <button class="key op" data-key="%">%</button>
+      <button class="key op" data-key="pi">π</button>
+      <button class="key op" data-key="e">e</button>
+      <button class="key op" data-key="!">n!</button>
+
+      <button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button>
+      <button class="key op" data-key="/">÷</button><button class="key op" data-key="*">×</button><button class="key op" data-key="^">xʸ</button>
+
+      <button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button>
+      <button class="key op" data-key="-">−</button><button class="key op" data-key="+">+</button><button class="key eq" data-key="=">=</button>
+
+      <button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button>
+      <button class="key" data-key=".">.</button><button class="key" data-key="0">0</button><div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Advanced Calculator -->
+<div class="win hidden pop-scale" id="win-adv" style="width:520px;height:460px; z-index:11;">
+  <div class="win-header"><div class="win-title" data-i18n="adv">Advanced Calculator</div>
+    <div class="win-actions"><button class="close" data-close="win-adv">✖</button></div></div>
+  <div class="content">
+    <div class="display" id="adv-display"><div class="expr" id="a-expr">&nbsp;</div><div class="out" id="a-out">0</div></div>
+    <div class="keys" id="a-keys">
+      <button class="key clear" data-key="AC">AC</button><button class="key clear" data-key="DEL">⌫</button><button class="key op" data-key="%">%</button>
+      <button class="key op" data-key="pi">π</button><button class="key op" data-key="e">e</button><button class="key op" data-key="!">n!</button>
+
+      <button class="key" data-key="7">7</button><button class="key" data-key="8">8</button><button class="key" data-key="9">9</button>
+      <button class="key op" data-key="sin">sin</button><button class="key op" data-key="cos">cos</button><button class="key op" data-key="tan">tan</button>
+
+      <button class="key" data-key="4">4</button><button class="key" data-key="5">5</button><button class="key" data-key="6">6</button>
+      <button class="key op" data-key="ln">ln</button><button class="key op" data-key="log">log</button><button class="key op" data-key="sqrt">√</button>
+
+      <button class="key" data-key="1">1</button><button class="key" data-key="2">2</button><button class="key" data-key="3">3</button>
+      <button class="key op" data-key="/">÷</button><button class="key op" data-key="*">×</button><button class="key op" data-key="^">xʸ</button>
+
+      <button class="key" data-key=".">.</button><button class="key" data-key="0">0</button><button class="key op" data-key="-">−</button>
+      <button class="key op" data-key="+">+</button><button class="key eq" data-key="=">=</button><div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tools (Converter / Percent / Date) -->
+<div class="win hidden pop-scale" id="win-tools" style="width:420px;height:380px; z-index:12;">
+  <div class="win-header"><div class="win-title" data-i18n="tools">Tools</div>
+    <div class="win-actions"><button class="close" data-close="win-tools">✖</button></div></div>
+  <div class="content">
+    <div class="tabs"><div class="tab active" data-tab="units">Units</div><div class="tab" data-tab="percent">Percent</div><div class="tab" data-tab="date">Date</div></div>
+    <div class="tool-pane" id="pane-units">
+      <label class="small">Value</label>
+      <div class="row"><input id="unit-value" type="number" placeholder="e.g. 1"><select id="unit-from"><option value="m">Meters</option><option value="km">Kilometers</option><option value="cm">Centimeters</option><option value="ft">Feet</option><option value="in">Inches</option><option value="mi">Miles</option></select></div>
+      <label class="small" style="margin-top:8px">To</label>
+      <select id="unit-to"><option value="ft">Feet</option><option value="m">Meters</option><option value="km">Kilometers</option><option value="mi">Miles</option><option value="cm">Centimeters</option><option value="in">Inches</option></select>
+      <div style="margin-top:8px" class="row"><button class="btn" id="btn-convert">Convert</button><button class="btn" id="copyUnit">Copy to Calc</button></div>
+      <div class="solutions" id="res-units">&nbsp;</div>
+    </div>
+    <div class="tool-pane" id="pane-percent" style="display:none">
+      <label class="small">A (%)</label><input id="pct-a" type="number" placeholder="e.g. 15">
+      <label class="small">B (base)</label><input id="pct-b" type="number" placeholder="e.g. 200">
+      <div class="row" style="margin-top:8px"><button class="btn" id="btn-of">A% of B</button><button class="btn" id="btn-what">What %</button></div>
+      <div class="solutions" id="res-pct">&nbsp;</div>
+    </div>
+    <div class="tool-pane" id="pane-date" style="display:none">
+      <label class="small">Date A</label><input id="date-a" type="date">
+      <label class="small">Date B</label><input id="date-b" type="date">
+      <div class="row" style="margin-top:8px"><button class="btn" id="btn-diff">Difference</button><button class="btn" id="btn-add">Add days to A</button><input id="daysToAdd" type="number" placeholder="days" style="width:100px"></div>
+      <div class="solutions" id="res-date">&nbsp;</div>
+    </div>
+  </div>
+</div>
+
+<!-- Solver -->
+<div class="win hidden pop-scale" id="win-solver" style="width:480px;height:320px; z-index:13;">
+  <div class="win-header"><div class="win-title" data-i18n="solver">Equation Solver</div>
+    <div class="win-actions"><button class="close" data-close="win-solver">✖</button></div></div>
+  <div class="content">
+    <label class="small">Type an equation or expression</label>
+    <input id="solver-input" type="text" placeholder="e.g. 2*x+3=7  or sin(pi/2)+sqrt(9)">
+    <div class="row" style="margin-top:8px"><button class="btn" id="solveBtn">Solve</button><button class="btn" id="evalBtn">Evaluate</button><button class="btn" id="simplifyBtn">Simplify</button></div>
+    <div id="solutions" class="solutions">No result yet</div>
+  </div>
+</div>
+
+<!-- Settings (centered over everything) -->
+<div class="win hidden pop-scale" id="win-settings" style="width:560px;height:440px; left:50%; top:50%; transform:translate(-50%,-50%); z-index:99;">
+  <div class="win-header"><div class="win-title" data-i18n="settings">Settings</div>
+    <div class="win-actions"><button class="close" id="close-settings">✖</button></div></div>
+  <div class="content">
+    <div class="tabs"><div class="tab active" data-tab="lang">Language</div><div class="tab" data-tab="appearance">Appearance</div><div class="tab" data-tab="history">History</div><div class="tab" data-tab="shortcuts">Shortcuts</div></div>
+
+    <div class="tool-pane" id="pane-lang">
+      <label class="small">Language</label>
+      <select id="lang"><option value="en">English</option><option value="pl">Polski</option><option value="es">Español</option><option value="zh">中文</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="ar">العربية</option></select>
+    </div>
+
+    <div class="tool-pane" id="pane-appearance" style="display:none">
+      <label class="small">Background RGB</label>
+      <div class="row"><input id="bgR" type="range" min="0" max="255" value="15"><input id="bgG" type="range" min="0" max="255" value="23"><input id="bgB" type="range" min="0" max="255" value="36"></div>
+      <label class="small" style="margin-top:8px">Accent RGB</label>
+      <div class="row"><input id="acR" type="range" min="0" max="255" value="34"><input id="acG" type="range" min="0" max="255" value="211"><input id="acB" type="range" min="0" max="255" value="238"></div>
+      <label class="small" style="margin-top:8px">UI scale</label>
+      <input id="uiScale" type="range" min="0.8" max="1.4" step="0.01" value="1">
+      <div class="row" style="margin-top:8px"><button class="btn" id="toggleTheme">Toggle Light/Dark</button><button class="btn" id="saveSettings">Save</button></div>
+    </div>
+
+    <div class="tool-pane" id="pane-history" style="display:none">
+      <label class="small">History</label>
+      <div id="allHistory" class="solutions" style="max-height:180px; overflow:auto"></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="clearAllHistory">Clear</button><button class="btn" id="copyAllHistory">Copy</button></div>
+    </div>
+
+    <div class="tool-pane" id="pane-shortcuts" style="display:none">
+      <label class="small">Shortcuts</label>
+      <ul>
+        <li>Enter — evaluate</li>
+        <li>Backspace — delete</li>
+        <li>Esc — clear</li>
+        <li>? — settings</li>
+      </ul>
+      <div style="margin-top:8px" class="small">Settings are saved to localStorage and apply to the whole site.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* -------------------------
+   Core state & utilities
+   ------------------------- */
+const translations = {
+  en:{
+    settings:'Settings', basic:'Basic Calculator', adv:'Advanced Calculator', tools:'Tools', solver:'Solver', reset:'Reset',
+    subtitle:'— simple & modern', settingsSaved:'Settings saved'
+  },
+  pl:{ settings:'Ustawienia', basic:'Podstawowy', adv:'Zaawansowany', tools:'Narzędzia', solver:'Rozwiązywacz', reset:'Reset', subtitle:'— prosty i nowoczesny', settingsSaved:'Zapisano ustawienia' },
+  es:{ settings:'Ajustes', basic:'Básico', adv:'Avanzado', tools:'Herramientas', solver:'Solver', reset:'Reiniciar', subtitle:'— simple y moderno', settingsSaved:'Ajustes guardados' },
+  zh:{ settings:'设置', basic:'基础', adv:'高级', tools:'工具', solver:'求解器', reset:'重置', subtitle:'— 简单而现代', settingsSaved:'已保存设置' },
+  ru:{ settings:'Настройки', basic:'Простой', adv:'Продвинутый', tools:'Инструменты', solver:'Решатель', reset:'Сброс', subtitle:'— простой и современный', settingsSaved:'Настройки сохранены' },
+  de:{ settings:'Einstellungen', basic:'Einfach', adv:'Erweitert', tools:'Tools', solver:'Löser', reset:'Zurücksetzen', subtitle:'— schlicht & modern', settingsSaved:'Einstellungen gespeichert' },
+  ar:{ settings:'الإعدادات', basic:'أساسي', adv:'متقدم', tools:'أدوات', solver:'المحلل', reset:'إعادة', subtitle:'— بسيط وعصري', settingsSaved:'تم حفظ الإعدادات' }
+};
+let lang = localStorage.getItem('calc_lang') || 'en';
+
+function t(k){ return translations[lang]?.[k] || translations['en'][k] || k }
+
+/* persist theme & scale */
+function applyColors(){
+  const bgR = localStorage.getItem('bgR') || 15;
+  const bgG = localStorage.getItem('bgG') || 23;
+  const bgB = localStorage.getItem('bgB') || 36;
+  const acR = localStorage.getItem('acR') || 34;
+  const acG = localStorage.getItem('acG') || 211;
+  const acB = localStorage.getItem('acB') || 238;
+  document.documentElement.style.setProperty('--bg-r', bgR);
+  document.documentElement.style.setProperty('--bg-g', bgG);
+  document.documentElement.style.setProperty('--bg-b', bgB);
+  document.documentElement.style.setProperty('--accent-r', acR);
+  document.documentElement.style.setProperty('--accent-g', acG);
+  document.documentElement.style.setProperty('--accent-b', acB);
+}
+function applyScale(){ document.documentElement.style.setProperty('--scale', localStorage.getItem('uiScale') || 1) }
+
+/* translation injection for tooltips and titles */
+function updateTranslations(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key) || el.textContent;
+  });
+  // tooltips
+  document.querySelectorAll('.tooltip').forEach(tt=>{
+    const k = tt.dataset.key;
+    if(k) tt.textContent = t(k);
+  });
+  document.getElementById('subtitle').textContent = t('subtitle') || '';
+}
+
+/* init settings inputs */
+function initSettingsUI(){
+  document.getElementById('bgR').value = localStorage.getItem('bgR') || 15;
+  document.getElementById('bgG').value = localStorage.getItem('bgG') || 23;
+  document.getElementById('bgB').value = localStorage.getItem('bgB') || 36;
+  document.getElementById('acR').value = localStorage.getItem('acR') || 34;
+  document.getElementById('acG').value = localStorage.getItem('acG') || 211;
+  document.getElementById('acB').value = localStorage.getItem('acB') || 238;
+  document.getElementById('uiScale').value = localStorage.getItem('uiScale') || 1;
+  document.getElementById('lang').value = lang;
+}
+
+/* listen to range changes and save */
+['bgR','bgG','bgB','acR','acG','acB','uiScale'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', ()=>{
+    localStorage.setItem(id, el.value);
+    applyColors(); applyScale();
+  });
+});
+
+/* toggle light/dark */
+document.getElementById('toggleTheme').addEventListener('click', ()=>{
+  // invert background quick for simplicity
+  const curr = localStorage.getItem('lightMode') === '1';
+  if(curr){ localStorage.setItem('lightMode','0'); document.documentElement.style.setProperty('--text-light','#e6eef8'); }
+  else { localStorage.setItem('lightMode','1'); document.documentElement.style.setProperty('--text-light','#071225'); }
+});
+
+/* save settings button */
+document.getElementById('saveSettings').addEventListener('click', ()=>{
+  localStorage.setItem('bgR', document.getElementById('bgR').value);
+  localStorage.setItem('bgG', document.getElementById('bgG').value);
+  localStorage.setItem('bgB', document.getElementById('bgB').value);
+  localStorage.setItem('acR', document.getElementById('acR').value);
+  localStorage.setItem('acG', document.getElementById('acG').value);
+  localStorage.setItem('acB', document.getElementById('acB').value);
+  localStorage.setItem('uiScale', document.getElementById('uiScale').value);
+  const sLang = document.getElementById('lang').value;
+  localStorage.setItem('calc_lang', sLang);
+  lang = sLang;
+  applyColors(); applyScale(); updateTranslations();
+  alert(t('settingsSaved') || 'Settings saved');
+});
+
+/* language switching instantly */
+document.getElementById('lang').addEventListener('change', (e)=>{ lang = e.target.value; localStorage.setItem('calc_lang', lang); updateTranslations(); });
+
+applyColors(); applyScale(); updateTranslations(); initSettingsUI();
+
+/* -------------------------
+   Window management & grid
+   ------------------------- */
+// we create a simple grid of slots where windows can sit; moving one finds the nearest free slot.
+const workspace = document.getElementById('workspace');
+const gridContainer = document.getElementById('gridContainer');
+let slots = []; // {x,y,w,h,el}
+const wins = [
+  {id:'win-basic', default:{left:40, top:60}},
+  {id:'win-adv', default:{left:420, top:60}},
+  {id:'win-tools', default:{left:40, top:340}},
+  {id:'win-solver', default:{left:420, top:340}}
+];
+
+function layoutGrid(){
+  // create a dynamic grid of places (4 columns x 2 rows approx) depending on workspace size
+  const rect = workspace.getBoundingClientRect();
+  const cols = 3; const rows = 3;
+  slots = [];
+  gridContainer.innerHTML = '';
+  const margin = 18;
+  const slotW = Math.max(260, (rect.width - margin*2 - (cols-1)*18)/cols);
+  const slotH = 200;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const x = margin + c*(slotW+18);
+      const y = margin + r*(slotH+18) + 20;
+      const slot = document.createElement('div'); slot.className='grid-slot';
+      slot.style.left = x+'px'; slot.style.top = y+'px'; slot.style.width = slotW+'px'; slot.style.height = slotH+'px'; slot.style.opacity = '0';
+      gridContainer.appendChild(slot);
+      slots.push({x,y,w:slotW,h:slotH,el:slot,occupied:false});
+    }
+  }
+  // place any visible wins into nearest slot if outside
+  document.querySelectorAll('.win').forEach(wEl=>{
+    if(wEl.classList.contains('hidden')) return;
+    const rectw = wEl.getBoundingClientRect();
+    const cx = rectw.left + rectw.width/2 - rect.left;
+    const cy = rectw.top + rectw.height/2 - rect.top;
+    const nearest = nearestSlot(cx,cy);
+    if(nearest) { moveWindowToSlot(wEl.id, nearest.index, true); }
+  });
+}
+
+function nearestSlot(cx,cy){
+  let best = null; slots.forEach((s,i)=>{
+    const dx = cx - (s.x + s.w/2); const dy = cy - (s.y + s.h/2);
+    const d = Math.hypot(dx,dy);
+    if(!best || d < best.d) best = {d,i};
+  });
+  return best;
+}
+
+window.addEventListener('resize', ()=> layoutGrid());
+setTimeout(()=> layoutGrid(), 120);
+
+/* open/close windows via sidebar */
+function openWin(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  // show and animate
+  el.classList.remove('hidden'); el.style.opacity = '0'; el.style.transform = 'translateY(12px) scale(.98)';
+  requestAnimationFrame(()=>{ el.classList.add('open-anim'); el.style.opacity = '1'; el.style.transform = 'translateY(0) scale(1)'; });
+  // place in nearest free slot (or keep previous)
+  const rect = workspace.getBoundingClientRect();
+  const cx = rect.width/2; const cy = rect.height/2;
+  const ns = nearestSlot(cx,cy);
+  if(ns) moveWindowToSlot(id, ns.i);
+}
+function closeWin(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.add('hidden'); el.style.opacity = '0'; el.style.transform = 'translateY(12px) scale(.98)';
+}
+
+/* toggle functions */
+document.getElementById('btn-basic').addEventListener('click', ()=> toggleWindow('win-basic'));
+document.getElementById('btn-advanced').addEventListener('click', ()=> toggleWindow('win-adv'));
+document.getElementById('btn-tools').addEventListener('click', ()=> toggleWindow('win-tools'));
+document.getElementById('btn-solver').addEventListener('click', ()=> toggleWindow('win-solver'));
+document.getElementById('btn-settings').addEventListener('click', ()=> toggleSettings());
+document.getElementById('btn-reset').addEventListener('click', ()=> doReset());
+
+function toggleWindow(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(el.classList.contains('hidden')) openWin(id); else closeWin(id);
+}
+
+/* close btns */
+document.querySelectorAll('[data-close]').forEach(b=>{
+  b.addEventListener('click', ()=>{ const id = b.dataset.close; closeWin(id); });
+});
+
+/* settings open-centered */
+function toggleSettings(){ const s = document.getElementById('win-settings'); if(s.classList.contains('hidden')){ s.classList.remove('hidden'); s.style.zIndex = 999; s.style.opacity = '0'; s.style.transform = 'translate(-50%,-48%) scale(.98)'; requestAnimationFrame(()=>{ s.style.opacity='1'; s.style.transform='translate(-50%,-50%) scale(1)';}); } else { s.classList.add('hidden'); } }
+document.getElementById('close-settings').addEventListener('click', ()=> toggleSettings());
+
+/* reset */
+function doReset(){
+  if(!confirm('Reset all settings and history?')) return;
+  localStorage.clear();
+  location.reload();
+}
+
+/* -------------------------
+   Drag & rearrange logic
+   ------------------------- */
+/* make windows draggable within the workspace; when dropped, snap to nearest free slot and rearrange */
+let dragInfo = null;
+function enableDrag(winEl){
+  const header = winEl.querySelector('.win-header');
+  header.style.cursor = 'grab';
+  header.addEventListener('pointerdown', (e)=>{
+    if(winEl.classList.contains('hidden')) return;
+    e.preventDefault(); header.setPointerCapture(e.pointerId);
+    header.style.cursor = 'grabbing';
+    const rect = winEl.getBoundingClientRect();
+    const wsRect = workspace.getBoundingClientRect();
+    dragInfo = { el:winEl, startX: e.clientX, startY: e.clientY, ox: rect.left - wsRect.left, oy: rect.top - wsRect.top };
+    winEl.style.transition = 'none';
+  });
+  header.addEventListener('pointermove', (e)=>{
+    if(!dragInfo || dragInfo.el !== winEl) return;
+    const dx = e.clientX - dragInfo.startX;
+    const dy = e.clientY - dragInfo.startY;
+    let nx = dragInfo.ox + dx;
+    let ny = dragInfo.oy + dy;
+    // keep within workspace bounds
+    const ws = workspace.getBoundingClientRect();
+    const wRect = winEl.getBoundingClientRect();
+    nx = Math.max(8, Math.min(nx, ws.width - 80));
+    ny = Math.max(8, Math.min(ny, ws.height - 60));
+    winEl.style.left = (nx + ws.left) + 'px'; winEl.style.top = (ny + ws.top) + 'px';
+    winEl.style.position = 'absolute';
+    winEl.style.zIndex = 50;
+  });
+  header.addEventListener('pointerup', (e)=>{
+    if(!dragInfo || dragInfo.el !== winEl) return;
+    header.releasePointerCapture(e.pointerId);
+    header.style.cursor = 'grab';
+    winEl.style.transition = '';
+    // compute center relative to workspace and snap to nearest slot
+    const wsRect = workspace.getBoundingClientRect();
+    const wRect = winEl.getBoundingClientRect();
+    const cx = (wRect.left + wRect.width/2) - wsRect.left;
+    const cy = (wRect.top + wRect.height/2) - wsRect.top;
+    const ns = nearestSlot(cx,cy);
+    if(ns) moveWindowToSlot(winEl.id, ns.i);
+    dragInfo = null;
+  });
+}
+
+document.querySelectorAll('.win').forEach(w=> enableDrag(w));
+
+/* snap window to slot index and rearrange others */
+function moveWindowToSlot(winId, slotIndex, immediate=false){
+  // free previous occupant
+  slots.forEach(s=>{ if(s.occupied === winId) s.occupied = false; });
+  // if slot already has occupant, try to shift occupant to next free slot
+  const targetSlot = slots[slotIndex];
+  if(!targetSlot) return;
+  if(targetSlot.occupied && targetSlot.occupied !== winId){
+    // find free slot
+    const free = slots.findIndex(s=>!s.occupied);
+    if(free !== -1){
+      // move occupant to free
+      const occId = targetSlot.occupied;
+      targetSlot.occupied = winId;
+      slots[free].occupied = occId;
+      // animate occupant to free
+      const occEl = document.getElementById(occId);
+      animateMoveToSlot(occEl, slots[free]);
+    } else {
+      // swap occupant
+      const occId = targetSlot.occupied;
+      const occIndex = slots.findIndex(s=>s.occupied===occId);
+      if(occIndex!==-1){
+        // swap positions
+        slots[occIndex].occupied = winId;
+        targetSlot.occupied = occId;
+        animateMoveToSlot(document.getElementById(occId), slots[occIndex]);
+      } else {
+        targetSlot.occupied = winId;
+      }
+    }
+  } else {
+    targetSlot.occupied = winId;
+  }
+  // set this window position
+  const el = document.getElementById(winId);
+  animateMoveToSlot(el, targetSlot, immediate);
+}
+
+/* animate movement */
+function animateMoveToSlot(el, slot, immediate=false){
+  if(!el || !slot) return;
+  const ws = workspace.getBoundingClientRect();
+  const left = ws.left + slot.x;
+  const top = ws.top + slot.y;
+  el.style.position = 'absolute';
+  if(immediate){
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+  } else {
+    el.style.transition = 'transform 320ms cubic-bezier(.2,.9,.25,1), left 260ms ease, top 260ms ease';
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    setTimeout(()=> el.style.transition = '', 360);
+  }
+  el.style.width = slot.w + 'px';
+  el.style.height = slot.h + 'px';
+  el.classList.add('open-anim');
+}
+
+/* -------------------------
+   Calculator logic (safe eval)
+   ------------------------- */
+function safeEval(input, xScope){
+  if(!input || typeof input !== 'string') throw 'Invalid';
+  // reject dangerous tokens
+  if(/\\b(window|document|fetch|eval|XMLHttpRequest|localStorage|Function)\\b/i.test(input)) throw 'Invalid input';
+  let s = input.replace(/π/g, 'Math.PI').replace(/pi\\b/gi,'Math.PI').replace(/e\\b/g,'Math.E');
+  // map functions
+  s = s.replace(/\\bsin\\b/g, 'Math.sin').replace(/\\bcos\\b/g,'Math.cos').replace(/\\btan\\b/g,'Math.tan');
+  s = s.replace(/\\bln\\b/g,'Math.log').replace(/\\blog\\b/g,'Math.log10').replace(/\\bsqrt\\b/g,'Math.sqrt').replace(/\\babs\\b/g,'Math.abs');
+  s = s.replace(/(\\d+(?:\\.\\d+)?)%/g, '($1/100)');
+  // factorial n! -> fac(n)
+  s = s.replace(/(\\d+)!/g, 'fac($1)');
+  // power ^ -> Math.pow
+  s = s.replace(/([0-9\\.\\)eMathPI]+)\\s*\\^\\s*([0-9\\.\\(eMathPI]+)/g, 'Math.pow($1,$2)');
+  // replace variable x with provided xScope
+  if(typeof xScope !== 'undefined') s = s.replace(/\\bx\\b/g, `(${Number(xScope)})`);
+  const fac = function(n){
+    n = Number(n);
+    if(n<0) throw 'Factorial negative';
+    if(!Number.isInteger(n)) throw 'Factorial non integer';
+    let r=1; for(let i=2;i<=n;i++) r*=i; return r;
+  };
+  try{
+    // eslint-disable-next-line no-new-func
+    return Function('fac','Math','return ('+s+');')(fac, Math);
+  } catch(e){
+    throw e;
+  }
+}
+
+/* basic calculator UI wiring */
+function wireCalculator(prefix){
+  const display = document.getElementById(prefix+'-display');
+  const exprEl = document.getElementById(prefix==='b'?'b-expr':'a-expr');
+  const outEl = document.getElementById(prefix==='b'?'b-out':'a-out');
+  const keys = document.getElementById(prefix==='b'?'b-keys':'a-keys');
+  let expr = '';
+  function fmt(n){ try{ if(typeof n==='number' && isFinite(n)) return Number(n).toLocaleString(); }catch(e){} return String(n) }
+  function refresh(){ exprEl.textContent = expr||'\u00A0'; try{ const val = expr? safeEval(expr) : 0; outEl.textContent = fmt(val); }catch(e){ outEl.textContent = 'Error' } }
+  keys.addEventListener('click', (ev)=>{
+    const b = ev.target.closest('button[data-key]'); if(!b) return;
+    const k = b.dataset.key;
+    if(k==='AC'){ expr=''; }
+    else if(k==='DEL'){ expr = expr.slice(0,-1); }
+    else if(k==='='){ try{ const v = safeEval(expr); historyUnshift(expr, v); expr = String(v); refresh(); } catch(e){ outEl.textContent='Error'; } }
+    else if(k==='pi'){ expr += 'pi'; }
+    else if(k==='sqrt'){ expr += 'sqrt('; }
+    else if(k==='!'){ expr += '!'; }
+    else expr += k;
+    refresh();
+  });
+  // expose evaluate externally
+  return { refresh, getExpr: ()=>expr, setExpr: v=>{ expr = v; refresh() } };
+}
+const basicCalc = wireCalculator('b'), advCalc = wireCalculator('a');
+
+/* history store */
+let history = JSON.parse(localStorage.getItem('calc_history')||'[]');
+function historyUnshift(expr, val){
+  history.unshift({expr, val, t:Date.now()}); if(history.length>200) history.pop();
+  localStorage.setItem('calc_history', JSON.stringify(history));
+  renderAllHistory();
+}
+function renderAllHistory(){
+  const el = document.getElementById('allHistory'); el.innerHTML = '';
+  history.forEach(it=>{
+    const d = document.createElement('div'); d.style.marginBottom='6px';
+    d.innerHTML = `<div style="color:var(--muted)">${escapeHtml(it.expr)}</div><div>${escapeHtml(String(it.val))}</div>`;
+    el.appendChild(d);
+  });
+}
+document.getElementById('clearAllHistory').addEventListener('click', ()=>{ if(!confirm('Clear history?')) return; history=[]; localStorage.removeItem('calc_history'); renderAllHistory(); });
+document.getElementById('copyAllHistory').addEventListener('click', ()=>{ navigator.clipboard.writeText(history.map(h=>h.expr+' = '+h.val).join('\\n')); });
+
+renderAllHistory();
+
+/* -------------------------
+   Tools logic (units, percent, date)
+   ------------------------- */
+const factors = { m:1, ft:0.3048, km:1000, mi:1609.34, cm:0.01, in:0.0254 };
+document.getElementById('btn-convert').addEventListener('click', ()=>{
+  const v = parseFloat(document.getElementById('unit-value').value);
+  const from = document.getElementById('unit-from').value;
+  const to = document.getElementById('unit-to').value;
+  const out = document.getElementById('res-units');
+  if(isNaN(v)){ out.textContent='Enter value'; return; }
+  const res = v * factors[from] / factors[to];
+  out.innerHTML = `${v} ${from} = <b>${res}</b> ${to}`;
+});
+document.getElementById('copyUnit').addEventListener('click', ()=>{ const txt = document.getElementById('res-units').textContent; if(txt) { basicCalc.setExpr(txt.match(/[-0-9.]+/)?.[0] || ''); } });
+
+document.getElementById('btn-of').addEventListener('click', ()=>{
+  const a = parseFloat(document.getElementById('pct-a').value);
+  const b = parseFloat(document.getElementById('pct-b').value);
+  const out = document.getElementById('res-pct');
+  if(isNaN(a)||isNaN(b)){ out.textContent='Enter both'; return; }
+  const res = (a/100)*b;
+  out.innerHTML = `${a}% of ${b} = <b>${res}</b>`;
+});
+document.getElementById('btn-what').addEventListener('click', ()=>{
+  const a = parseFloat(document.getElementById('pct-a').value);
+  const b = parseFloat(document.getElementById('pct-b').value);
+  const out = document.getElementById('res-pct');
+  if(isNaN(a)||isNaN(b)||b===0){ out.textContent='Enter valid'; return; }
+  const res = (a/b)*100;
+  out.innerHTML = `${a} is <b>${res}%</b> of ${b}`;
+});
+
+document.getElementById('btn-diff').addEventListener('click', ()=>{
+  const a = document.getElementById('date-a').value; const b = document.getElementById('date-b').value;
+  const out = document.getElementById('res-date');
+  if(!a||!b){ out.textContent='Pick both'; return; }
+  const diff = Math.abs(new Date(b) - new Date(a)); const days = Math.floor(diff/(1000*60*60*24));
+  out.innerHTML = `Difference: <b>${days}</b> days`;
+});
+document.getElementById('btn-add').addEventListener('click', ()=>{
+  const a = document.getElementById('date-a').value; const days = parseInt(document.getElementById('daysToAdd').value,10);
+  const out = document.getElementById('res-date');
+  if(!a||isNaN(days)){ out.textContent='Pick date and days'; return; }
+  const d = new Date(a); d.setDate(d.getDate()+days);
+  out.innerHTML = `Result: <b>${d.toISOString().slice(0,10)}</b>`;
+});
+
+/* tools tab switching */
+document.querySelectorAll('#win-tools .tab').forEach(t=> t.addEventListener('click', ()=>{
+  document.querySelectorAll('#win-tools .tab').forEach(x=> x.classList.remove('active'));
+  document.querySelectorAll('#win-tools .tool-pane').forEach(p=> p.style.display='none');
+  t.classList.add('active'); document.getElementById('pane-'+t.dataset.tab).style.display='';
+}));
+
+/* -------------------------
+   Solver (simple numeric & simplify)
+   ------------------------- */
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=> ( { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c] || c ) ); }
+
+function findRootsNumerical(f, xmin, xmax, steps=200){
+  const roots = [];
+  const dx = (xmax-xmin)/steps;
+  let x0 = xmin; let y0 = f(x0);
+  for(let i=1;i<=steps;i++){
+    const x1 = xmin + i*dx; const y1 = f(x1);
+    if(!isFinite(y0) || !isFinite(y1)){ x0=x1; y0=y1; continue; }
+    if(y0===0) roots.push(x0);
+    if(y0*y1<0){
+      let a=x0,b=x1,fa=y0,fb=y1;
+      for(let it=0; it<40; it++){
+        const m=(a+b)/2; const fm = f(m);
+        if(!isFinite(fm)) break;
+        if(Math.abs(fm) < 1e-12){ a=m; break; }
+        if(fa*fm<=0){ b=m; fb=fm; } else { a=m; fa=fm; }
+      }
+      const root = (a+b)/2;
+      if(!roots.some(r=>Math.abs(r-root)<1e-6)) roots.push(root);
+    }
+    x0=x1; y0=y1;
+  }
+  return roots.sort((a,b)=>a-b);
+}
+
+document.getElementById('solveBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('solver-input').value.trim();
+  const out = document.getElementById('solutions');
+  if(!input){ out.textContent = 'Type an expression'; return; }
+  if(input.includes('=')){
+    const parts = input.split('='); const L = parts.shift(); const R = parts.join('=');
+    // detect variable name (first letter a..z)
+    const varMatch = (L+R).match(/[a-zA-Z]/g);
+    const variable = varMatch ? varMatch[0] : null;
+    if(!variable){
+      try{ const lv = safeEval(L); const rv = safeEval(R); out.innerHTML = `Left = <b>${lv}</b><br>Right = <b>${rv}</b><br>${lv===rv?'<b>They are equal</b>':'<b>Not equal</b>'}`; }catch(e){ out.textContent = 'Error: '+e; }
+      return;
+    }
+    // build f(x) = L - R and find roots
+    try{
+      const f = x => {
+        try{ return Number(safeEval(L.replace(new RegExp('\\\\b'+variable+'\\\\b','g'), `(${x})`)) - safeEval(R.replace(new RegExp('\\b'+variable+'\\b','g'), `(${x})`))); }catch(e){ return NaN; }
+      };
+      const roots = findRootsNumerical(f, -1000, 1000, 400);
+      if(roots.length===0) out.textContent = 'No roots found (try different range)';
+      else out.innerHTML = 'Roots: ' + roots.map(r=>`<div>${variable} ≈ <b>${r.toPrecision(10)}</b></div>`).join('');
+    }catch(e){ out.textContent = 'Error: '+e; }
+  } else {
+    // expression only: try evaluate and simple 'simplify' (we will show original and evaluated)
+    try{
+      const evaluated = safeEval(input);
+      out.innerHTML = `Evaluated: <b>${escapeHtml(String(evaluated))}</b>`;
+    } catch(e){ out.textContent = 'Error: '+e; }
+  }
+});
+document.getElementById('evalBtn').addEventListener('click', ()=>{ document.getElementById('solveBtn').click(); });
+document.getElementById('simplifyBtn').addEventListener('click', ()=>{ alert('Simplify: basic evaluator present — complex symbolic simplify is not included without external libs.'); });
+
+/* -------------------------
+   Keyboard shortcuts & interactions
+   ------------------------- */
+document.addEventListener('keydown', (e)=>{
+  if(e.key === '?'){ toggleSettings(); }
+  if(e.key === 'Escape'){ /* close all popups? just close settings */ const s = document.getElementById('win-settings'); if(!s.classList.contains('hidden')) toggleSettings(); }
+});
+
+/* -------------------------
+   On load: initialize positions and attach shows
+   ------------------------- */
+setTimeout(()=>{
+  layoutGrid();
+  // place windows hidden off-canvas initial coordinates (they will snap when opened)
+  wins.forEach((w,i)=>{ const el = document.getElementById(w.id); el.style.left = (100 + i*30) + 'px'; el.style.top = (80 + i*10) + 'px'; });
+  updateTranslations();
+  // attach sidebar tooltips content
+  document.querySelectorAll('.icon-btn').forEach(b=>{
+    const tt = b.querySelector('.tooltip'); if(!tt) return;
+    const key = tt.dataset.key;
+  });
+}, 200);
+
+/* expose some helpers for copying results into calculators */
+window.copyToBasic = (val)=>{ basicCalc.setExpr(String(val)); toggleWindow('win-basic'); };
+window.copyToAdvanced = (val)=>{ advCalc.setExpr(String(val)); toggleWindow('win-adv'); };
+
+/* ensure resizable windows keep z-index order when clicked */
+document.querySelectorAll('.win').forEach(w => w.addEventListener('mousedown', ()=>{ document.querySelectorAll('.win').forEach(x=> x.style.zIndex = 10); w.style.zIndex = 60; }));
+
+/* make settings tabs work */
+document.querySelectorAll('#win-settings .tab').forEach(t=> t.addEventListener('click', ()=>{
+  document.querySelectorAll('#win-settings .tab').forEach(x=> x.classList.remove('active'));
+  document.querySelectorAll('#win-settings .tool-pane').forEach(p=> p.style.display = 'none');
+  t.classList.add('active'); document.getElementById('pane-'+t.dataset.tab).style.display = '';
+}));
+
+/* initial translation update */
+updateTranslations();
+</script>
+</body>
+</html>
